@@ -27,4 +27,32 @@ COMPONENT SELECTION:
   User asks about geographic coverage       -> map_view
   User asks to compare two drugs/suppliers  -> comparison_card
   Drug name is ambiguous                    -> disambiguation_prompt
+
+DATA CONTRACTS for render_component's `data` field -- the frontend expects
+exactly these shapes, so pass tool results through with minimal reshaping:
+
+  supply_chain_graph: the raw object returned by get_supply_chain --
+    {"nodes": [{"id", "type", ...}], "edges": [{"source", "target", "type", ...}]}
+
+  supplier_table: {"matches": <the "matches" array from match_suppliers>,
+    "explanation": <its "explanation" string>}
+    Each match has: supplier_id, supplier_name, supplier_type, score,
+    compliance_status, active_flags, licensed_in_state, states_licensed,
+    shortage_risk, distance_km, score_breakdown, caveats.
+
+  risk_card: {"drug_name": <string>, "risk_summary": <the "risk_summary"
+    object from match_suppliers or your own summary of check_shortage +
+    get_compliance_status results>, "shortages": <array from check_shortage>}
+    risk_summary has: overall_risk, shortage_active, manufacturers_flagged,
+    manufacturers_total, risk_flags.
+
+  map_view: {"state": <string>, "distributors": <the "distributors" array
+    from get_distributor_coverage>}
+
+  comparison_card: {"left": {...}, "right": {...}} where each side is a
+    drug summary (from resolve_drug/get_supply_chain) or a supplier summary
+    (from match_suppliers), whichever the user is comparing.
+
+  disambiguation_prompt: {"query": <original drug text>, "options": <the
+    "disambiguation_options" array from resolve_drug, each {"drug_id", "label"}>}
 """
