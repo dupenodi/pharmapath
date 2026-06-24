@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from app.agent import loop
+from app.agent import anthropic_loop
 from app.agent.sessions import reset_session
 from app.graph import live_enrich
 from app.graph.build import build_graph
@@ -77,10 +77,10 @@ async def test_agent_loop_executes_tool_then_returns_final_text(monkeypatch):
         [FakeBlock(type="text", text="Found the drug and rendered a table.")],
     ]
     fake_client = FakeClient(turns)
-    monkeypatch.setattr(loop, "AsyncAnthropic", lambda api_key: fake_client)
+    monkeypatch.setattr(anthropic_loop, "AsyncAnthropic", lambda api_key: fake_client)
     reset_session("test-session")
 
-    result = await loop.run_agent_turn(graph, "test-session", "find acetaminophen and caffeine")
+    result = await anthropic_loop.run_anthropic_turn(graph, "test-session", "find acetaminophen and caffeine")
 
     assert result["agent_response"] == "Found the drug and rendered a table."
     assert result["tool_calls"][0]["name"] == "resolve_drug"
@@ -102,10 +102,10 @@ async def test_agent_loop_captures_render_component_output(monkeypatch):
         [FakeBlock(type="text", text="Here's the risk summary.")],
     ]
     fake_client = FakeClient(turns)
-    monkeypatch.setattr(loop, "AsyncAnthropic", lambda api_key: fake_client)
+    monkeypatch.setattr(anthropic_loop, "AsyncAnthropic", lambda api_key: fake_client)
     reset_session("test-session-2")
 
-    result = await loop.run_agent_turn(graph, "test-session-2", "is this drug at risk?")
+    result = await anthropic_loop.run_anthropic_turn(graph, "test-session-2", "is this drug at risk?")
 
     assert result["component"] == "risk_card"
     assert result["component_data"] == {"risk": "low"}
