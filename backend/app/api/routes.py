@@ -1,9 +1,21 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
+from app.agent.loop import run_agent_turn
 from app.graph.queries import get_supply_chain, serialize_node, serialize_node_edges
 from app.graph.store import graph_store
 
 router = APIRouter()
+
+
+class QueryRequest(BaseModel):
+    message: str
+    session_id: str
+
+
+@router.post("/query")
+async def query(request: QueryRequest) -> dict:
+    return await run_agent_turn(graph_store.graph, request.session_id, request.message)
 
 
 @router.get("/health")
