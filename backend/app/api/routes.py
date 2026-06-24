@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
+from app.graph.queries import get_supply_chain, serialize_node, serialize_node_edges
 from app.graph.store import graph_store
 
 router = APIRouter()
@@ -13,3 +14,19 @@ def health() -> dict:
         "edge_count": graph_store.edge_count,
         "seeded_at": graph_store.seeded_at,
     }
+
+
+@router.get("/graph/node/{node_id}")
+def get_node(node_id: str) -> dict:
+    node = serialize_node(graph_store.graph, node_id)
+    if node is None:
+        raise HTTPException(status_code=404, detail=f"Node {node_id!r} not found")
+    return {"node": node, "edges": serialize_node_edges(graph_store.graph, node_id)}
+
+
+@router.get("/graph/supply-chain/{drug_id}")
+def get_drug_supply_chain(drug_id: str) -> dict:
+    subgraph = get_supply_chain(graph_store.graph, drug_id)
+    if subgraph is None:
+        raise HTTPException(status_code=404, detail=f"Drug {drug_id!r} not found")
+    return subgraph

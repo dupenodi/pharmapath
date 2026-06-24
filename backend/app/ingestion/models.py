@@ -64,3 +64,13 @@ class DistributorRecord(BaseModel):
     city: str
     states_licensed: list[str]
     national_coverage: bool
+
+
+class GeographyRecord(BaseModel):
+    """One US state/territory node."""
+
+    state_code: str
+    name: str
+    centroid_lat: float
+    centroid_lng: float
+    region: str

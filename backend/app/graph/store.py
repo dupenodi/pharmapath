@@ -2,13 +2,14 @@ from datetime import datetime, timezone
 
 import networkx as nx
 
+from app.graph.build import build_graph
+from app.ingestion.distributors_big3 import load_big3_distributors
+from app.ingestion.geography import load_geography_records
+from app.ingestion.ndc import load_ndc_records
+
 
 class GraphStore:
-    """Holds the in-memory networkx graph and seeding metadata.
-
-    Populated by the Phase 2 ingestion pipeline. Phase 0 only needs the
-    shape of this object so /health can report on it before the graph exists.
-    """
+    """Holds the in-memory networkx graph and seeding metadata."""
 
     def __init__(self) -> None:
         self.graph: nx.MultiDiGraph = nx.MultiDiGraph()
@@ -26,7 +27,13 @@ class GraphStore:
     def edge_count(self) -> int:
         return self.graph.number_of_edges()
 
-    def mark_seeded(self) -> None:
+    def seed(self) -> None:
+        ndc_records = [r for r in load_ndc_records() if r.product_type == "HUMAN PRESCRIPTION DRUG"]
+        self.graph = build_graph(
+            ndc_records=ndc_records,
+            distributor_records=load_big3_distributors(),
+            geography_records=load_geography_records(),
+        )
         self.seeded_at = datetime.now(timezone.utc)
 
 
