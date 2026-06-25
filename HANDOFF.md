@@ -9,6 +9,18 @@ suggested next steps (email + hosting).
 
 See `PLAN.md` for the original design doc this was built against.
 
+**Live demo (deployed, no local setup needed):**
+- Assistant + Supply Map: **https://pharmapath-one.vercel.app**
+- Backend API: **https://easemed-backend.onrender.com** (`/health` for a
+  quick check)
+
+Backend is on Render's free tier, so it sleeps after ~15 min idle — if the
+first request after a pause takes 30-60s to respond, that's the service
+waking up, not a bug. It's also running with `GRAPH_SCOPE=rx_only` (71k
+nodes, prescription drugs only) to fit the free tier's memory limit, not
+the full dataset described below — see [section 4](#4-where-i-deliberately-limited-scope-and-why)
+for why, and run it locally (section 1) for the full prescription + OTC graph.
+
 ---
 
 ## 1. How to test it
@@ -298,15 +310,19 @@ Roughly in the order I'd actually tackle them:
 >
 > Hi [Nikita/founder name],
 >
-> Here's the POC: [GitHub link]. I've also recorded a short demo walking
-> through both surfaces (chat assistant + the supply map explorer) — [link].
+> Here's the POC, live: https://pharmapath-one.vercel.app. Repo:
+> https://github.com/dupenodi/pharmapath. I've also recorded a short demo
+> walking through both surfaces (chat assistant + the supply map explorer)
+> — [recording link].
 >
-> Quick summary: it ingests 4 real FDA datasets into a ~134k-node knowledge
-> graph, runs a procurement-matching engine over it, and exposes both a
-> self-serve explorer and an LLM agent that calls tools over the graph. I've
-> also put together a short write-up of what's in scope, what I deliberately
-> left out and why, and what I'd do differently for a real product — happy
-> to walk through it live.
+> Quick summary: it ingests 4 real FDA datasets into a knowledge graph
+> (~134k nodes locally, running a ~71k-node prescription-only subset on the
+> free-tier hosted version — more on why in the write-up below), runs a
+> procurement-matching engine over it, and exposes both a self-serve
+> explorer and an LLM agent that calls tools over the graph. I've also put
+> together a short write-up of what's in scope, what I deliberately left
+> out and why, and what I'd do differently for a real product — happy to
+> walk through it live.
 >
 > [Your name]
 
@@ -315,50 +331,36 @@ Roughly in the order I'd actually tackle them:
 sending the link (public vs. inviting the founder as a collaborator on a
 private repo).
 
-**Demo recording:** record both surfaces — a couple of Supply Map searches,
-then a full Assistant conversation (drug → disambiguation → shortage check →
-supplier table), so the founder sees the agent reasoning, not just a single
-search bar.
+**Demo recording:** still worth doing even with a live link — record both
+surfaces (a couple of Supply Map searches, then a full Assistant
+conversation: drug → disambiguation → shortage check → supplier table) so
+the founder sees the agent reasoning even if she doesn't click through
+herself. The [example prompts](#2-example-prompts-to-try) above are a good
+script for this.
 
-**Hosting — backend on Render, frontend on Vercel (both free):**
+**Hosting — done.** Backend on Render
+(`https://easemed-backend.onrender.com`), frontend on Vercel
+(`https://pharmapath-one.vercel.app`), both free tier. Live demo link is at
+the top of this doc.
 
-A real constraint to know about: the full dataset (Rx + OTC) peaks at
+A real constraint worth knowing about: the full dataset (Rx + OTC) peaks at
 ~670MB RAM during the one-time startup graph build, over Render's free
 512MB cap. Fixed two ways — streaming the 244MB NDC parse instead of
 loading it all into memory at once (cut peak from ~1.4GB to ~670MB), and a
 `GRAPH_SCOPE=rx_only` setting that drops OTC drugs and brings it to ~370MB,
-comfortably inside the free tier. `render.yaml` at the repo root already
-sets this for you.
+comfortably inside the free tier. That's the setting currently live on
+Render — the hosted demo is prescription drugs only; OTC products like
+Tylenol won't resolve there (they do locally with `GRAPH_SCOPE=full`).
 
-1. **Backend (Render):**
-   - On [render.com](https://render.com), "New" → "Blueprint" → connect the
-     `dupenodi/pharmapath` GitHub repo. It reads `render.yaml` and
-     pre-fills everything (free plan, build/start commands, `rootDir:
-     backend`, `GRAPH_SCOPE=rx_only`).
-   - You'll be prompted for `OPENAI_API_KEY` (marked secret in the
-     blueprint, so it's never committed) — paste your key. `render.yaml` is
-     set to `AGENT_PROVIDER=openai`/`gpt-4o`; swap those env vars if you'd
-     rather use Anthropic or Gemini instead.
-   - Deploy. First boot downloads the NDC file and builds the graph — give
-     it a minute or two. Check `https://<your-service>.onrender.com/health`
-     returns `"graph_loaded": true`.
-   - Free-tier services sleep after 15 min idle and take ~30-60s to wake on
-     the next request — normal, not a bug, if the first demo request after
-     a pause feels slow.
-2. **Frontend (Vercel):**
-   - On [vercel.com](https://vercel.com), "New Project" → import the same
-     repo → set **Root Directory** to `frontend` (the dashboard setting,
-     not a config file — this is a monorepo with the backend alongside it).
-   - Set env vars: `NEXT_PUBLIC_API_URL` = your Render backend URL from
-     step 1; `NEXT_PUBLIC_MAPBOX_TOKEN` is optional (the map view falls
-     back to a plain list without it).
-   - Deploy.
-3. **Connect them:** once you have the Vercel URL, go back to the Render
-   service's env vars and set `CORS_ORIGINS` to
-   `["https://<your-app>.vercel.app"]` (replacing the localhost placeholder
-   in `render.yaml`) and redeploy the backend so it accepts requests from
-   the live frontend.
+If you ever need to redeploy from scratch (e.g. a new Render/Vercel
+account): `render.yaml` at the repo root drives Render's "New → Blueprint"
+flow automatically (free plan, build/start commands, `GRAPH_SCOPE=rx_only`
+all pre-filled — you'd only need to paste an `OPENAI_API_KEY`). For Vercel,
+"New Project" → import the repo → set **Root Directory** to `frontend` →
+set `NEXT_PUBLIC_API_URL` to the Render URL. Then on Render, set
+`CORS_ORIGINS` to the Vercel URL and redeploy so the two can talk to each
+other — that one step doesn't fully automate since each platform only
+gives you its own URL after its own deploy.
 
-I haven't created any accounts, deployed anything, or sent the email —
-wanted to leave those as explicit calls for you to make (recipient, repo visibility,
-whether you want it hosted before sending).
+I haven't sent the email — wanted to leave the recipient and final wording
+as your call.
