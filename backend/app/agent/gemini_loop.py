@@ -1,5 +1,8 @@
+import asyncio
+
 import networkx as nx
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from app.agent.sessions import get_history
@@ -7,6 +10,10 @@ from app.agent.system_prompt import SYSTEM_PROMPT
 from app.agent.tool_runner import MAX_TOOL_ITERATIONS, run_tool
 from app.agent.tools import TOOLS
 from app.core.config import settings
+
+GENERATE_RETRY_DELAYS_SECONDS = (2, 5, 10)
+RATE_LIMIT_RETRY_DELAY_SECONDS = 15.0
+RATE_LIMIT_MAX_RETRIES = 3
 
 
 def _build_tool() -> types.Tool:
@@ -19,6 +26,33 @@ def _build_tool() -> types.Tool:
         for t in TOOLS
     ]
     return types.Tool(function_declarations=declarations)
+
+
+def _is_rate_limited(error: genai_errors.ClientError) -> bool:
+    return getattr(error, "code", None) == 429
+
+
+async def _generate_with_retry(client: genai.Client, **kwargs):
+    """Gemini's hosted models occasionally return 503 UNAVAILABLE under load
+    (transient) and free-tier keys can hit 429 RESOURCE_EXHAUSTED (rate limit,
+    e.g. 5 requests/minute for gemini-2.5-flash) -- neither is a code bug.
+    Retry both with backoff before giving up."""
+    last_error: genai_errors.APIError | None = None
+    rate_limit_retries = 0
+    for delay in (0, *GENERATE_RETRY_DELAYS_SECONDS):
+        if delay:
+            await asyncio.sleep(delay)
+        try:
+            return await client.aio.models.generate_content(**kwargs)
+        except genai_errors.ServerError as e:
+            last_error = e
+        except genai_errors.ClientError as e:
+            if not _is_rate_limited(e) or rate_limit_retries >= RATE_LIMIT_MAX_RETRIES:
+                raise
+            rate_limit_retries += 1
+            last_error = e
+            await asyncio.sleep(RATE_LIMIT_RETRY_DELAY_SECONDS)
+    raise last_error
 
 
 async def run_gemini_turn(graph: nx.MultiDiGraph, session_id: str, message: str) -> dict:
@@ -34,7 +68,8 @@ async def run_gemini_turn(graph: nx.MultiDiGraph, session_id: str, message: str)
 
     text = ""
     for _ in range(MAX_TOOL_ITERATIONS):
-        response = await client.aio.models.generate_content(
+        response = await _generate_with_retry(
+            client,
             model=settings.gemini_model,
             contents=history,
             config=config,
