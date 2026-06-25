@@ -5,7 +5,7 @@ from anthropic import AsyncAnthropic
 
 from app.agent.sessions import get_history
 from app.agent.system_prompt import SYSTEM_PROMPT
-from app.agent.tool_runner import MAX_TOOL_ITERATIONS, run_tool
+from app.agent.tool_runner import MAX_TOOL_ITERATIONS, fallback_render_component, run_tool
 from app.agent.tools import TOOLS
 from app.core.config import settings
 
@@ -52,7 +52,12 @@ async def run_anthropic_turn(graph: nx.MultiDiGraph, session_id: str, message: s
         warnings.append("Agent loop reached MAX_TOOL_ITERATIONS without a final response.")
 
     if component is None:
-        warnings.append("Agent did not call render_component -- no UI component selected for this response.")
+        fallback = fallback_render_component(tool_calls_log, message)
+        if fallback is not None:
+            component, component_data = fallback
+            warnings.append("render_component was synthesized server-side from an unresolved drug-name disambiguation.")
+        else:
+            warnings.append("Agent did not call render_component -- no UI component selected for this response.")
 
     return {
         "agent_response": text,

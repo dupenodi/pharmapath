@@ -117,6 +117,57 @@ async def test_openai_loop_executes_tool_then_returns_final_text(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_openai_loop_synthesizes_disambiguation_when_model_skips_render_component(monkeypatch):
+    """Regression test: live gpt-4o described disambiguation options in prose
+    text after an ambiguous resolve_drug, but never called render_component --
+    so the frontend got no clickable options. The fallback in tool_runner
+    should fill that gap."""
+    graph = build_test_graph()
+
+    async def fake_run_tool(graph, name, tool_input):
+        assert name == "resolve_drug"
+        return {
+            "ambiguous": True,
+            "disambiguation_options": [
+                {"drug_id": "drug:1", "label": "Acetaminophen 10 mg/mL INJECTION"},
+                {"drug_id": "drug:2", "label": "Acetaminophen 1000 mg/100mL INJECTION"},
+            ],
+        }
+
+    monkeypatch.setattr(openai_loop, "run_tool", fake_run_tool)
+
+    turns = [
+        FakeResponse(
+            choices=[
+                FakeChoice(
+                    message=FakeMessage(
+                        tool_calls=[
+                            FakeToolCall(
+                                id="call_1",
+                                function=FakeFunction(name="resolve_drug", arguments=json.dumps({"drug_name": "Acetaminophen"})),
+                            )
+                        ]
+                    )
+                )
+            ]
+        ),
+        FakeResponse(choices=[FakeChoice(message=FakeMessage(content="Here are the options: 1. ... 2. ..."))]),
+    ]
+    fake_client = FakeOpenAIClient(turns)
+    monkeypatch.setattr(openai_loop.openai, "AsyncOpenAI", lambda api_key: fake_client)
+    reset_session("openai-session-disambiguation")
+
+    result = await openai_loop.run_openai_turn(graph, "openai-session-disambiguation", "find me acetaminophen")
+
+    assert result["component"] == "disambiguation_prompt"
+    assert result["component_data"]["options"] == [
+        {"drug_id": "drug:1", "label": "Acetaminophen 10 mg/mL INJECTION"},
+        {"drug_id": "drug:2", "label": "Acetaminophen 1000 mg/100mL INJECTION"},
+    ]
+    assert "synthesized server-side" in " ".join(result["warnings"])
+
+
+@pytest.mark.asyncio
 async def test_openai_loop_captures_render_component_output(monkeypatch):
     graph = build_test_graph()
     turns = [
