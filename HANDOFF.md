@@ -253,10 +253,10 @@ sets this for you.
      `dupenodi/pharmapath` GitHub repo. It reads `render.yaml` and
      pre-fills everything (free plan, build/start commands, `rootDir:
      backend`, `GRAPH_SCOPE=rx_only`).
-   - You'll be prompted for `ANTHROPIC_API_KEY` (marked secret in the
-     blueprint, so it's never committed) — paste your key. Swap
-     `AGENT_PROVIDER`/model env vars first if you'd rather use Gemini or
-     OpenAI.
+   - You'll be prompted for `OPENAI_API_KEY` (marked secret in the
+     blueprint, so it's never committed) — paste your key. `render.yaml` is
+     set to `AGENT_PROVIDER=openai`/`gpt-4o`; swap those env vars if you'd
+     rather use Anthropic or Gemini instead.
    - Deploy. First boot downloads the NDC file and builds the graph — give
      it a minute or two. Check `https://<your-service>.onrender.com/health`
      returns `"graph_loaded": true`.

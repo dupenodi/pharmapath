@@ -9,11 +9,11 @@ services:
     healthCheckPath: /health
     envVars:
       - key: AGENT_PROVIDER
-        value: anthropic
-      - key: ANTHROPIC_API_KEY
+        value: openai
+      - key: OPENAI_API_KEY
         sync: false
-      - key: ANTHROPIC_MODEL
-        value: claude-sonnet-4-6
+      - key: OPENAI_MODEL
+        value: gpt-4o
       - key: GRAPH_SCOPE
         value: rx_only
       - key: CORS_ORIGINS
