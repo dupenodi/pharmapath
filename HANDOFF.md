@@ -1,11 +1,10 @@
-# EaseMed POC — Handoff & Review
+# EaseMed POC — Technical Notes
 
-**What this is:** a proof-of-concept built to show how I approach an ambiguous
-problem ("pharma supply chain intelligence") end to end — real data, a graph,
-a matching engine, an LLM agent over tools, and a UI — not a finished product.
+**What this is:** a proof-of-concept for a pharma supply chain intelligence
+platform — real data, a knowledge graph, a matching engine, an LLM agent over
+tools, and a UI — not a finished product.
 This doc covers how to run and test it, what's actually in it, where I
-deliberately cut scope and why, what I'd change to make it a real product, and
-suggested next steps (email + hosting).
+deliberately cut scope and why, and what I'd change to make it a real product.
 
 See `PLAN.md` for the original design doc this was built against.
 
@@ -168,8 +167,8 @@ tier's memory, so these won't resolve there):
 - `"Find me a supplier for ibuprofen."` — no delivery state; should ask
   before running matching.
 
-**Probing the documented limits** (good for showing the founder the system
-is honest about what it doesn't know, rather than papering over gaps):
+**Probing the documented limits** (tests whether the system is honest about
+what it doesn't know, rather than papering over gaps):
 - `"Does McKesson actually carry this drug in their warehouse?"` — should
   say distributor candidates come from state licensing, not confirmed stock.
 - `"Which specific facility makes this drug?"` — compliance is per-
@@ -280,7 +279,7 @@ Roughly in the order I'd actually tackle them:
    asked what, what the system said, what they did with it) — both for trust
    and for liability reasons given this touches health-system purchasing.
 6. **Agent observability and eval harness.** Right now correctness is
-   verified by hand (exactly the testing I did this session). A real product
+   verified by hand against the live deployed backend. A real product
    needs: traced tool calls per request, a golden-set of procurement
    scenarios with expected tool sequences/outputs, and regression detection
    when a model or prompt change silently breaks behavior.
@@ -302,65 +301,23 @@ Roughly in the order I'd actually tackle them:
 
 ---
 
-## 6. Next steps (for you)
+## 6. Deployment
 
-**Email to the founder** — short draft you can adapt:
+**Live:** backend on Render (`https://easemed-backend.onrender.com`),
+frontend on Vercel (`https://pharmapath-one.vercel.app`), both free tier.
 
-> Subject: EaseMed POC — repo + demo
->
-> Hi [Nikita/founder name],
->
-> Here's the POC, live: https://pharmapath-one.vercel.app. Repo:
-> https://github.com/dupenodi/pharmapath. I've also recorded a short demo
-> walking through both surfaces (chat assistant + the supply map explorer)
-> — [recording link].
->
-> Quick summary: it ingests 4 real FDA datasets into a knowledge graph
-> (~134k nodes locally, running a ~71k-node prescription-only subset on the
-> free-tier hosted version — more on why in the write-up below), runs a
-> procurement-matching engine over it, and exposes both a self-serve
-> explorer and an LLM agent that calls tools over the graph. I've also put
-> together a short write-up of what's in scope, what I deliberately left
-> out and why, and what I'd do differently for a real product — happy to
-> walk through it live.
->
-> [Your name]
+The full dataset (Rx + OTC) peaks at ~670MB RAM during the one-time
+startup graph build, over Render's free 512MB cap. Fixed two ways —
+streaming the 244MB NDC parse (cut peak from ~1.4GB to ~670MB) and a
+`GRAPH_SCOPE=rx_only` setting that drops OTC drugs and brings it to ~370MB.
+The live deployment runs `rx_only` — prescription drugs only; OTC products
+like Tylenol won't resolve there (they do locally with `GRAPH_SCOPE=full`).
 
-**GitHub:** repo is already at `https://github.com/dupenodi/pharmapath` (per
-`git remote -v`) — confirm it's set to the visibility you want before
-sending the link (public vs. inviting the founder as a collaborator on a
-private repo).
-
-**Demo recording:** still worth doing even with a live link — record both
-surfaces (a couple of Supply Map searches, then a full Assistant
-conversation: drug → disambiguation → shortage check → supplier table) so
-the founder sees the agent reasoning even if she doesn't click through
-herself. The [example prompts](#2-example-prompts-to-try) above are a good
-script for this.
-
-**Hosting — done.** Backend on Render
-(`https://easemed-backend.onrender.com`), frontend on Vercel
-(`https://pharmapath-one.vercel.app`), both free tier. Live demo link is at
-the top of this doc.
-
-A real constraint worth knowing about: the full dataset (Rx + OTC) peaks at
-~670MB RAM during the one-time startup graph build, over Render's free
-512MB cap. Fixed two ways — streaming the 244MB NDC parse instead of
-loading it all into memory at once (cut peak from ~1.4GB to ~670MB), and a
-`GRAPH_SCOPE=rx_only` setting that drops OTC drugs and brings it to ~370MB,
-comfortably inside the free tier. That's the setting currently live on
-Render — the hosted demo is prescription drugs only; OTC products like
-Tylenol won't resolve there (they do locally with `GRAPH_SCOPE=full`).
-
-If you ever need to redeploy from scratch (e.g. a new Render/Vercel
-account): `render.yaml` at the repo root drives Render's "New → Blueprint"
-flow automatically (free plan, build/start commands, `GRAPH_SCOPE=rx_only`
-all pre-filled — you'd only need to paste an `OPENAI_API_KEY`). For Vercel,
-"New Project" → import the repo → set **Root Directory** to `frontend` →
-set `NEXT_PUBLIC_API_URL` to the Render URL. Then on Render, set
-`CORS_ORIGINS` to the Vercel URL and redeploy so the two can talk to each
-other — that one step doesn't fully automate since each platform only
-gives you its own URL after its own deploy.
-
-I haven't sent the email — wanted to leave the recipient and final wording
-as your call.
+**Redeploy from scratch:** `render.yaml` at the repo root drives Render's
+"New → Blueprint" flow automatically (free plan, build/start commands,
+`GRAPH_SCOPE=rx_only` all pre-filled — paste an `OPENAI_API_KEY` when
+prompted). For Vercel: "New Project" → import the repo → set **Root
+Directory** to `frontend` → set `NEXT_PUBLIC_API_URL` to the Render URL.
+Then set `CORS_ORIGINS` on the Render service to the Vercel URL and
+redeploy — that step is manual since each platform only gives you its URL
+after its own deploy.
