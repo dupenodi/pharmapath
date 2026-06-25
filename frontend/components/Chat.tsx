@@ -26,6 +26,10 @@ export default function Chat() {
     setError(null);
     try {
       const res = await postQuery(text, sessionId);
+      // res.warnings are internal/developer diagnostics (e.g. "the model
+      // skipped calling render_component") -- log them for debugging, never
+      // show them in the chat thread itself.
+      if (res.warnings.length > 0) console.warn("Agent diagnostics:", res.warnings);
       const assistantMsg: ChatMessage = {
         id: `m${idCounter.current++}`,
         role: "assistant",
@@ -58,13 +62,6 @@ export default function Chat() {
               <>
                 <div className="max-w-lg rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-2 text-sm text-zinc-200">{m.text}</div>
                 <ComponentRouter component={m.component} data={m.componentData} onDisambiguationSelect={send} />
-                {m.warnings.length > 0 && (
-                  <ul className="text-xs text-amber-500/70">
-                    {m.warnings.map((w, i) => (
-                      <li key={i}>{w}</li>
-                    ))}
-                  </ul>
-                )}
               </>
             )}
           </div>
