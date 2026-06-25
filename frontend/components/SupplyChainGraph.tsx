@@ -3,39 +3,7 @@
 import cytoscape, { type Core, type ElementDefinition } from "cytoscape";
 import { useEffect, useRef, useState } from "react";
 import type { GraphNode, SupplyChainGraphData } from "@/lib/types";
-
-const NODE_COLOR: Record<string, string> = {
-  ActiveIngredient: "#a78bfa",
-  Drug: "#60a5fa",
-  Manufacturer: "#34d399",
-  Facility: "#2dd4bf",
-  Distributor: "#fb923c",
-  Geography: "#a1a1aa",
-  ComplianceFlag: "#f87171",
-  Shortage: "#f87171",
-};
-
-const EDGE_LABEL: Record<string, string> = {
-  CONTAINS: "contains",
-  LABELLED_BY: "made by",
-  OPERATES: "operates",
-  LOCATED_IN: "located in",
-  LICENSED_IN: "licensed in",
-  HAS_FLAG: "flagged by",
-  HAS_SHORTAGE: "shortage",
-};
-
-function nodeColor(node: GraphNode): string {
-  if (node.type === "Manufacturer") {
-    const hasActiveFlag = (node.active_flags as { status: string }[] | undefined)?.some((f) => f.status === "active");
-    return hasActiveFlag ? "#f87171" : NODE_COLOR.Manufacturer;
-  }
-  return NODE_COLOR[node.type] ?? "#71717a";
-}
-
-function nodeLabel(node: GraphNode): string {
-  return (node.brand_name as string) || (node.name as string) || (node.canonical_name as string) || node.id;
-}
+import { EDGE_LABEL, nodeColor, nodeLabel } from "@/lib/graphStyle";
 
 export default function SupplyChainGraph({ data }: { data: SupplyChainGraphData }) {
   const containerRef = useRef<HTMLDivElement>(null);

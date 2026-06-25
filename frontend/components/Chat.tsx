@@ -43,7 +43,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="mx-auto flex h-screen max-w-4xl flex-col px-4 py-6">
+    <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col px-4 py-6">
       <header className="mb-4">
         <h1 className="text-lg font-semibold text-zinc-100">EaseMed Supply Chain Intelligence</h1>
         <p className="text-sm text-zinc-500">Ask about drug supply chains, supplier matching, shortage risk, or compliance.</p>

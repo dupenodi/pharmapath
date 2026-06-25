@@ -72,7 +72,13 @@ export type ComponentName =
   | "disambiguation_prompt";
 
 export type SupplyChainGraphData = { nodes: GraphNode[]; edges: GraphEdge[] };
-export type SupplierTableData = { matches: SupplierMatch[]; explanation: string };
+export type AlternativeDrug = { drug_id: string; generic_name: string; brand_name: string | null; relationship: string };
+export type SupplierTableData = {
+  matches: SupplierMatch[];
+  matches_total?: number;
+  explanation: string;
+  alternatives?: AlternativeDrug[];
+};
 export type RiskCardData = { drug_name?: string; risk_summary: RiskSummary | null; shortages?: Shortage[] };
 export type MapViewData = { state: string; distributors: Distributor[] };
 export type ComparisonCardData = { left: Record<string, unknown>; right: Record<string, unknown> };
@@ -86,6 +92,69 @@ export type QueryResponse = {
   component_data: Record<string, unknown> | null;
   tool_calls: ToolCall[];
   warnings: string[];
+};
+
+export type ConnectionItem = {
+  id: string;
+  label: string;
+  type: string;
+  caption: string;
+  is_generic?: boolean;
+};
+
+export type ConnectionGroup = {
+  relation: string;
+  items: ConnectionItem[];
+  total: number;
+};
+
+export type EntityDetail = {
+  node: GraphNode;
+  label: string;
+  type: string;
+  connections: ConnectionGroup[];
+};
+
+export type QualityItem = {
+  level: "error" | "warning" | "info";
+  message: string;
+  detail: string;
+};
+
+export type MetaEdge = { source_type: string; type: string; target_type: string; count: number };
+
+export type GraphOverview = {
+  node_count: number;
+  edge_count: number;
+  node_counts: Record<string, number>;
+  edge_counts: Record<string, number>;
+  schema_node_types: string[];
+  schema_edges: { source_type: string; target_type: string; type: string }[];
+  meta_edges: MetaEdge[];
+  components: { count: number; components: { size: number; node_types: Record<string, number> }[] };
+  quality: QualityItem[];
+};
+
+export type NodeListItem = {
+  id: string;
+  type: string;
+  label: string;
+  degree: number;
+  attrs: Record<string, unknown>;
+};
+
+export type NodeListResponse = {
+  total: number;
+  limit: number;
+  offset: number;
+  items: NodeListItem[];
+  fuzzy?: boolean;
+};
+
+export type Neighborhood = SupplyChainGraphData & {
+  focus: string;
+  total_degree: number;
+  truncated: boolean;
 };
 
 export type ChatMessage = {

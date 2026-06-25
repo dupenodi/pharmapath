@@ -1,19 +1,54 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
-  --foreground: #e4e4e7;
+  /* Clinical ink palette — cool, calm, instrument-like. */
+  --background: #0a0e14;
+  --surface: #111824;
+  --surface-2: #0d131c;
+  --border: #1f2a38;
+  --border-strong: #2c3a4c;
+  --foreground: #e8eef5;
+  --muted: #8a97a8;
+  --faint: #5a6675;
+  --focus: #7dd3fc;
+
+  /* Categorical node colors — the only spectral element in the UI. */
+  --node-drug: #5ba8ff;
+  --node-ingredient: #b79cff;
+  --node-manufacturer: #34d399;
+  --node-facility: #2dd4bf;
+  --node-distributor: #f4a259;
+  --node-geography: #94a3b8;
+  --node-risk: #fb7185;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-border: var(--border);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-newsreader);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* The map canvas: a faint engineered grid so the network reads as a plotted field. */
+.map-field {
+  background-color: var(--surface-2);
+  background-image:
+    linear-gradient(to right, rgba(124, 211, 252, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(124, 211, 252, 0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
