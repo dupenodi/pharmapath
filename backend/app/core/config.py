@@ -11,13 +11,16 @@ class Settings(BaseSettings):
 
     # Which LLM drives the agent loop. Same 8 tools, same system prompt,
     # same render_component contract either way -- see app/agent/loop.py.
-    agent_provider: str = "anthropic"  # "anthropic" | "gemini"
+    agent_provider: str = "anthropic"  # "anthropic" | "gemini" | "openai"
 
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
+
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o"
 
     cors_origins: list[str] = ["http://localhost:3000"]
 

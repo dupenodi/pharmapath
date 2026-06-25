@@ -40,7 +40,8 @@ class FakeContent:
 
 @dataclass
 class FakeCandidate:
-    content: FakeContent
+    content: FakeContent | None
+    finish_reason: str = "STOP"
 
 
 @dataclass
@@ -144,6 +145,28 @@ async def test_gemini_loop_captures_render_component_output(monkeypatch):
     assert result["component"] == "risk_card"
     assert result["component_data"] == {"risk": "low"}
     assert result["warnings"] == []
+
+
+@pytest.mark.asyncio
+async def test_gemini_loop_handles_none_parts_without_crashing(monkeypatch):
+    """Regression test: a real live call returned content.parts=None (no
+    text, no function call -- e.g. a safety block), which crashed the
+    original `for p in candidate_content.parts` with TypeError."""
+    graph = build_test_graph()
+    turns = [
+        FakeResponse(
+            candidates=[FakeCandidate(content=FakeContent(role="model", parts=None), finish_reason="SAFETY")],
+            text="",
+        ),
+    ]
+    fake_client = FakeGeminiClient(turns)
+    monkeypatch.setattr(gemini_loop.genai, "Client", lambda api_key: fake_client)
+    reset_session("gemini-session-none-parts")
+
+    result = await gemini_loop.run_gemini_turn(graph, "gemini-session-none-parts", "hello")
+
+    assert "SAFETY" in result["agent_response"]
+    assert result["component"] is None
 
 
 @pytest.mark.asyncio

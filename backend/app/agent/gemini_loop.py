@@ -74,12 +74,22 @@ async def run_gemini_turn(graph: nx.MultiDiGraph, session_id: str, message: str)
             contents=history,
             config=config,
         )
-        candidate_content = response.candidates[0].content
-        history.append(candidate_content)
+        candidate = response.candidates[0]
+        candidate_content = candidate.content
+        parts = (candidate_content.parts if candidate_content else None) or []
+        if candidate_content is not None:
+            history.append(candidate_content)
 
-        function_calls = [p.function_call for p in candidate_content.parts if p.function_call]
+        function_calls = [p.function_call for p in parts if p.function_call]
         if not function_calls:
             text = response.text or ""
+            if not text:
+                # candidate_content.parts came back None/empty with no text either
+                # -- e.g. a safety block or an unusual finish_reason. Surface that
+                # instead of silently returning an empty answer.
+                finish_reason = getattr(candidate, "finish_reason", None)
+                text = f"The model returned an empty response (finish_reason={finish_reason})."
+                warnings.append(text)
             break
 
         response_parts = []

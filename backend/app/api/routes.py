@@ -1,4 +1,5 @@
 import anthropic
+import openai
 from fastapi import APIRouter, HTTPException
 from google.genai import errors as genai_errors
 from pydantic import BaseModel
@@ -23,10 +24,21 @@ async def query(request: QueryRequest) -> dict:
         if getattr(e, "code", None) == 429:
             raise HTTPException(
                 status_code=429,
-                detail="Gemini rate limit hit (free tier is 5 requests/minute for gemini-2.5-flash). Wait a minute and try again, or switch AGENT_PROVIDER to anthropic.",
+                detail="Gemini rate limit hit (free tier is 5 requests/minute for gemini-2.5-flash). Wait a minute and try again, or switch AGENT_PROVIDER to anthropic or openai.",
             ) from e
         raise
-    except (genai_errors.ServerError, anthropic.APIStatusError, anthropic.APIConnectionError) as e:
+    except openai.RateLimitError as e:
+        raise HTTPException(
+            status_code=429,
+            detail=f"OpenAI rate limit hit ({e}). Wait a minute and try again, or switch AGENT_PROVIDER.",
+        ) from e
+    except (
+        genai_errors.ServerError,
+        anthropic.APIStatusError,
+        anthropic.APIConnectionError,
+        openai.APIStatusError,
+        openai.APIConnectionError,
+    ) as e:
         raise HTTPException(
             status_code=503,
             detail=f"The model provider is temporarily unavailable ({e}). Please try again in a moment.",
