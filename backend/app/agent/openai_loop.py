@@ -93,7 +93,7 @@ async def run_openai_turn(graph: nx.MultiDiGraph, session_id: str, message: str)
         fallback = fallback_render_component(tool_calls_log, message)
         if fallback is not None:
             component, component_data = fallback
-            warnings.append("render_component was synthesized server-side from an unresolved drug-name disambiguation.")
+            warnings.append(f"render_component was synthesized server-side ({component}) -- the model answered without calling it.")
         else:
             warnings.append("Agent did not call render_component -- no UI component selected for this response.")
 
