@@ -14,7 +14,18 @@ out/
 .env.local
 
 # Data caches (downloaded FDA datasets, regenerable)
-data/raw/
+# NDC auto-downloads at startup (~244MB), so it stays out of git. DECRS/DSCSA/
+# Orange Book require a manual, interactive export (FDA blocks scripted
+# requests for these) and are only ~16MB total -- small enough, and otherwise
+# unobtainable on a fresh deploy, so those are committed. See
+# data/MANUAL_DOWNLOADS.md.
+data/raw/*
+!data/raw/decrs/
+!data/raw/decrs/**
+!data/raw/dscsa/
+!data/raw/dscsa/**
+!data/raw/orange_book/
+!data/raw/orange_book/**
 data/cache/
 
 # OS

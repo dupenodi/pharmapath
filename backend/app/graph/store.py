@@ -2,12 +2,16 @@ from datetime import datetime, timezone
 
 import networkx as nx
 
+from app.core.config import settings
 from app.graph.build import build_graph
 from app.ingestion.decrs import load_facility_records
 from app.ingestion.distributors import load_distributor_records
 from app.ingestion.geography import load_geography_records
 from app.ingestion.ndc import dedupe_ndc_records, load_ndc_records
 from app.ingestion.orange_book import load_orange_book_index
+
+_RX_ONLY = {"HUMAN PRESCRIPTION DRUG"}
+_FULL_SCOPE = {"HUMAN PRESCRIPTION DRUG", "HUMAN OTC DRUG"}
 
 
 class GraphStore:
@@ -30,11 +34,12 @@ class GraphStore:
         return self.graph.number_of_edges()
 
     def seed(self) -> None:
-        # Both prescription and OTC drugs -- excluding OTC left common products
-        # like Tylenol or Advil invisible with no explanation (PLAN.md never
-        # required excluding them, just de-prioritized them for phase 1).
-        in_scope = {"HUMAN PRESCRIPTION DRUG", "HUMAN OTC DRUG"}
-        ndc_records = dedupe_ndc_records([r for r in load_ndc_records() if r.product_type in in_scope])
+        # Both prescription and OTC drugs by default -- excluding OTC left
+        # common products like Tylenol or Advil invisible with no explanation.
+        # GRAPH_SCOPE=rx_only halves the dataset (and peak memory during this
+        # build, ~670MB -> ~370MB) for hosting on a memory-constrained tier.
+        in_scope = _RX_ONLY if settings.graph_scope == "rx_only" else _FULL_SCOPE
+        ndc_records = dedupe_ndc_records(r for r in load_ndc_records() if r.product_type in in_scope)
         self.graph = build_graph(
             ndc_records=ndc_records,
             distributor_records=load_distributor_records(),

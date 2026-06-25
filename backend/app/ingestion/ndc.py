@@ -1,4 +1,7 @@
 import json
+from collections.abc import Iterable, Iterator
+
+import ijson
 
 from app.ingestion.fetch import download_to_raw, extract_zip_member
 from app.ingestion.models import NdcRecord
@@ -7,40 +10,44 @@ NDC_BULK_URL = "https://download.open.fda.gov/drug/ndc/drug-ndc-0001-of-0001.jso
 
 
 def fetch_ndc_json() -> dict:
-    """Downloads (or reuses the cached copy of) the openFDA NDC bulk export."""
+    """Downloads (or reuses the cached copy of) the openFDA NDC bulk export.
+
+    Only used by tests against small fixtures -- the production path
+    (load_ndc_records) streams the real ~244MB file instead of materializing
+    it as a dict; see _build_record.
+    """
     zip_path = download_to_raw(NDC_BULK_URL, "ndc.json.zip")
     json_path = extract_zip_member(zip_path, ".json", zip_path.parent)
     with json_path.open() as f:
         return json.load(f)
 
 
+def _build_record(entry: dict) -> NdcRecord:
+    strengths = [
+        f"{a.get('strength', '')}".strip()
+        for a in entry.get("active_ingredients", [])
+        if a.get("strength")
+    ]
+    return NdcRecord(
+        product_id=entry.get("product_id", ""),
+        product_ndc=entry.get("product_ndc", ""),
+        generic_name=entry.get("generic_name", ""),
+        brand_name=entry.get("brand_name"),
+        dosage_form=entry.get("dosage_form"),
+        route=entry.get("route", []),
+        labeler_name=entry.get("labeler_name", ""),
+        substance_name=[a.get("name", "") for a in entry.get("active_ingredients", [])],
+        application_number=entry.get("application_number"),
+        product_type=entry.get("product_type"),
+        marketing_category=entry.get("marketing_category"),
+        finished=entry.get("finished", True),
+        listing_expiration_date=entry.get("listing_expiration_date"),
+        active_ingredient_strengths=strengths,
+    )
+
+
 def parse_ndc_records(raw: dict) -> list[NdcRecord]:
-    records: list[NdcRecord] = []
-    for entry in raw.get("results", []):
-        strengths = [
-            f"{a.get('strength', '')}".strip()
-            for a in entry.get("active_ingredients", [])
-            if a.get("strength")
-        ]
-        records.append(
-            NdcRecord(
-                product_id=entry.get("product_id", ""),
-                product_ndc=entry.get("product_ndc", ""),
-                generic_name=entry.get("generic_name", ""),
-                brand_name=entry.get("brand_name"),
-                dosage_form=entry.get("dosage_form"),
-                route=entry.get("route", []),
-                labeler_name=entry.get("labeler_name", ""),
-                substance_name=[a.get("name", "") for a in entry.get("active_ingredients", [])],
-                application_number=entry.get("application_number"),
-                product_type=entry.get("product_type"),
-                marketing_category=entry.get("marketing_category"),
-                finished=entry.get("finished", True),
-                listing_expiration_date=entry.get("listing_expiration_date"),
-                active_ingredient_strengths=strengths,
-            )
-        )
-    return records
+    return [_build_record(entry) for entry in raw.get("results", [])]
 
 
 def _completeness(rec: NdcRecord) -> int:
@@ -58,7 +65,7 @@ def _completeness(rec: NdcRecord) -> int:
     )
 
 
-def dedupe_ndc_records(records: list[NdcRecord]) -> list[NdcRecord]:
+def dedupe_ndc_records(records: Iterable[NdcRecord]) -> list[NdcRecord]:
     """Collapse rows sharing a product_ndc to one 'best' record.
 
     The graph keys Drug nodes on product_ndc, so duplicate rows would silently
@@ -81,7 +88,19 @@ def dedupe_ndc_records(records: list[NdcRecord]) -> list[NdcRecord]:
     return list(best.values())
 
 
-def load_ndc_records() -> list[NdcRecord]:
+def load_ndc_records() -> Iterator[NdcRecord]:
     # Dedupe is applied by the caller *after* product-type filtering, so a
     # same-NDC non-prescription row can't win and then get filtered out.
-    return parse_ndc_records(fetch_ndc_json())
+    #
+    # A generator, not a list: streams the ~244MB file entry-by-entry (ijson)
+    # and yields records one at a time, so the caller's filter+dedupe can
+    # consume them without ever holding the full ~110k-record list AND the
+    # dedupe dict in memory at once. Combined with streaming the JSON itself
+    # (instead of json.load()-ing it whole), this cut peak RSS during startup
+    # from ~1.4GB to under 700MB -- the difference between fitting in a
+    # typical free-tier host's memory cap or not.
+    zip_path = download_to_raw(NDC_BULK_URL, "ndc.json.zip")
+    json_path = extract_zip_member(zip_path, ".json", zip_path.parent)
+    with json_path.open("rb") as f:
+        for entry in ijson.items(f, "results.item"):
+            yield _build_record(entry)

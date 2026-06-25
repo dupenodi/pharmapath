@@ -31,5 +31,11 @@ class Settings(BaseSettings):
     openfda_base_url: str = "https://api.fda.gov"
     openfda_cache_ttl_seconds: int = 3600
 
+    # "full": both prescription and OTC drugs (~111k NDC records, ~670MB peak
+    # RSS during the startup graph build). "rx_only": prescription drugs only
+    # (~55k records, ~370MB peak) -- for hosting on a memory-constrained free
+    # tier (e.g. 512MB) where the full dataset would OOM during startup.
+    graph_scope: str = "full"  # "full" | "rx_only"
+
 
 settings = Settings()
