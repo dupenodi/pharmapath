@@ -77,8 +77,9 @@ non-deterministic by nature.
 1. `"I need acetaminophen for delivery to Illinois, are there any
    shortages?"` — should resolve the drug, check shortage, and either ask to
    narrow down (multiple strengths/forms exist) or run matching directly.
-2. If asked to disambiguate, reply with the option you want (by name or by
-   the `drug_id` it showed you) — should proceed without re-resolving.
+2. If asked to disambiguate, reply with the option you want by name (it
+   should never show you a raw internal ID to reference) — should proceed
+   without re-resolving.
 3. Confirm the response includes: a supplier table or risk card, compliance
    status per supplier (clean/flagged/unknown — never silently assumed
    clean), and an explicit shortage check.
@@ -96,7 +97,88 @@ alternatives, distributors) say so explicitly rather than silently truncating.
 
 ---
 
-## 2. What's actually built
+## 2. Example prompts to try
+
+Grounded in what's actually in the data (real NDC/Orange Book/DECRS/DSCSA
+records — these aren't made-up examples), organized by what each one
+exercises. Drug names below are all real products in the dataset.
+
+**Core procurement flow** (drug → shortage check → supplier match):
+- `"I need acetaminophen for delivery to Illinois, any shortages?"`
+- `"Find me a supplier to deliver 10,000 units of gabapentin to Texas in 2 weeks."`
+  — the short deadline shifts scoring toward compliance/location over coverage.
+- `"Who can supply lisinopril 10mg tablets to Ohio?"`
+
+**Disambiguation** (multiple strengths/forms/brands exist):
+- `"I need atorvastatin."` — generic name alone usually has 10+ distinct
+  strength/dosage-form combos; it should ask which one rather than guess.
+- Reply to the follow-up by name (e.g. "the 80mg tablet") — it should
+  proceed without re-asking.
+
+**Urgency and quantity effects on scoring:**
+- `"I need 60,000 units of metformin delivered to California within 3 days."`
+  — large quantity should filter out non-national-coverage distributors; the
+  short deadline should weight location/compliance more heavily than usual.
+- Ask the same drug/state with no deadline or quantity and compare the
+  ranking — the weighting shift should be visible in the score breakdown.
+
+**Shortage + alternatives:**
+- `"Is there a shortage of amoxicillin right now?"`
+- If a shortage comes back active (openFDA's shortage list changes over
+  time, so this is real-time, not guaranteed to trigger): ask `"what are my
+  alternatives?"` — should return real Orange Book therapeutic-equivalent
+  matches, not a vague "try a similar drug."
+
+**Compliance, asked directly:**
+- `"What's the compliance status of [a manufacturer name the agent
+  surfaced in an earlier answer]?"` — should give clean/flagged/unknown,
+  never assume clean.
+- `"Is there a recall on [manufacturer]?"`
+
+**Distributor coverage:**
+- `"What distributors are licensed to deliver in Wyoming?"` vs. `"...in
+  California?"` — Wyoming has far fewer licensees than California (a
+  populous state can have 500+); the agent should say so rather than
+  presenting a capped list as exhaustive.
+
+**Typo tolerance** (tests the fuzzy-matching fallback):
+- `"Do you have atorvastin?"` (missing a letter) or `"gabapentn"` — should
+  still resolve to the real drug, not return nothing.
+
+**OTC awareness** — only meaningful if you're running locally with
+`GRAPH_SCOPE=full` (the hosted demo defaults to `rx_only` to fit the free
+tier's memory, so these won't resolve there):
+- `"Can hospitals procure Tylenol through a wholesale distributor?"` — OTC
+  products are in scope and treated like any other drug.
+
+**Vague/incomplete requests** (should ask, not guess):
+- `"I need some painkillers."` — no specific drug; should ask which one.
+- `"Find me a supplier for ibuprofen."` — no delivery state; should ask
+  before running matching.
+
+**Probing the documented limits** (good for showing the founder the system
+is honest about what it doesn't know, rather than papering over gaps):
+- `"Does McKesson actually carry this drug in their warehouse?"` — should
+  say distributor candidates come from state licensing, not confirmed stock.
+- `"Which specific facility makes this drug?"` — compliance is per-
+  manufacturer, not per-facility; it should say so rather than guessing.
+
+**On the Supply Map (`/graph`, no LLM — pure data browsing):**
+- Search a drug (`"gabapentin"`) and open its record — check the "Made by,"
+  "Active ingredients," and "Therapeutic equivalents" sections (gabapentin
+  alone has 300+ real equivalents, reported as "showing N of the true
+  total," not silently truncated).
+- Search a manufacturer name and a distributor name to compare how
+  fragmented each looks — try `"mckesson"` (heavily fragmented, ~34
+  near-duplicate warehouse entities from DSCSA's per-license reporting) vs.
+  `"cardinal health"` (much less fragmented) to see the data-quality
+  difference firsthand.
+- Click through Drug → Manufacturer → Facility → Geography to see the real
+  multi-hop chain DECRS data enables.
+
+---
+
+## 3. What's actually built
 
 | Layer | What it is |
 |---|---|
@@ -140,7 +222,7 @@ thing this assignment is trying to surface.
 
 ---
 
-## 3. Where I deliberately limited scope (and why)
+## 4. Where I deliberately limited scope (and why)
 
 Every limit below was a deliberate call to keep the POC buildable in the
 time available, not an oversight. They're documented in `PLAN.md` and in
@@ -159,7 +241,7 @@ code comments at the exact place they apply.
 
 ---
 
-## 4. If this became a real product — what I'd change
+## 5. If this became a real product — what I'd change
 
 Roughly in the order I'd actually tackle them:
 
@@ -208,7 +290,7 @@ Roughly in the order I'd actually tackle them:
 
 ---
 
-## 5. Next steps (for you)
+## 6. Next steps (for you)
 
 **Email to the founder** — short draft you can adapt:
 
