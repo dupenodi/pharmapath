@@ -7,6 +7,10 @@ _LEGAL_SUFFIXES = re.compile(
     r"pharmaceuticals?|pharma|laboratories|labs?|holdings?|group|usa|us)\b\.?",
     re.IGNORECASE,
 )
+# "doing business as": the operating/trade name (after d/b/a) is the recognizable
+# entity, so we keep that side and drop the holding-company prefix. Otherwise
+# "Heritage Pharma Labs Inc. d/b/a Avet Pharmaceuticals" fragments by prefix.
+_DBA = re.compile(r"\b(d/?b/?a|dba)\b", re.IGNORECASE)
 _PUNCTUATION = re.compile(r"[.,'\"()&/-]")
 _WHITESPACE = re.compile(r"\s+")
 
@@ -14,16 +18,22 @@ NAME_MATCH_THRESHOLD = 90.0
 
 
 def normalize_name(raw_name: str) -> str:
-    """Lowercase, strip legal suffixes/punctuation, collapse whitespace.
+    """Lowercase, resolve d/b/a, strip legal suffixes/punctuation, collapse whitespace.
 
     Used to build a canonical key for manufacturer/distributor names that
     are spelled inconsistently across NDC, DECRS, and DSCSA (e.g. "Amneal
     Pharmaceuticals LLC" vs "AMNEAL PHARMS").
     """
     name = raw_name.lower().strip()
+    if _DBA.search(name):
+        # Keep the trade name on the right-hand side of the last d/b/a.
+        name = _DBA.split(name)[-1].strip()
     name = _PUNCTUATION.sub(" ", name)
     name = _LEGAL_SUFFIXES.sub(" ", name)
     name = _WHITESPACE.sub(" ", name).strip()
+    # Guard: never collapse to empty (e.g. a name that's all legal suffixes).
+    if not name:
+        name = _PUNCTUATION.sub(" ", raw_name.lower()).strip()
     return name
 
 

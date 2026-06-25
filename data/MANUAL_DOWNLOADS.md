@@ -1,35 +1,34 @@
-# Manual downloads needed for Phase 1
+# Manual datasets (downloaded — now ingested)
 
-`fda.gov` blocks scripted requests (Akamai bot wall), and DECRS/DSCSA are
-interactive search tools rather than flat files, so these three need to be
-downloaded by hand in a browser and dropped into this directory. NDC is
-already done (downloaded live, see `drug-ndc-0001-of-0001.json`).
+`fda.gov` blocks scripted requests (Akamai bot wall) and DECRS/DSCSA are
+interactive tools rather than flat files, so these were downloaded by hand and
+dropped into `data/raw/`. All four sources below are now parsed and built into
+the graph at startup (`app/graph/store.py`). They are gitignored (regenerable
+by re-downloading), so keep the originals if you wipe `data/raw/`.
 
-## 1. Orange Book
+| Source | Path in repo | Parser | Builds |
+|---|---|---|---|
+| NDC directory (openFDA bulk) | `data/raw/drug-ndc-0001-of-0001.json` | `app/ingestion/ndc.py` | Drug, Manufacturer, ActiveIngredient |
+| Orange Book products | `data/raw/orange_book/products.txt` | `app/ingestion/orange_book.py` | therapeutic-equivalence enrichment on Drug |
+| DECRS establishments | `data/raw/decrs/drls_reg.csv` | `app/ingestion/decrs.py` | Facility (+ authoritative repackager flag) |
+| DSCSA wholesale/3PL | `data/raw/dscsa/<STATE>.csv` (52 files) | `app/ingestion/distributors.py` | Distributor + per-state licensing |
 
-1. Open https://www.fda.gov/drugs/drug-approvals-and-databases/orange-book-data-files
-2. Download the "Data Files" ZIP (contains `products.txt`, `patent.txt`, `exclusivity.txt`, tilde-delimited).
-3. Unzip it into `data/raw/orange_book/` so the files are at:
-   - `data/raw/orange_book/products.txt`
-   - `data/raw/orange_book/patent.txt`
-   - `data/raw/orange_book/exclusivity.txt`
+## Re-downloading if needed
 
-## 2. DECRS (Drug Establishments Current Registration Site)
+- **Orange Book**: https://www.fda.gov/drugs/drug-approvals-and-databases/orange-book-data-files
+  → "Data Files" ZIP → unzip `products.txt` into `data/raw/orange_book/`.
+- **DECRS**: https://www.fda.gov/drugs/drug-approvals-and-databases/drug-establishments-current-registration-site-decrs
+  → export the `drls_reg` table as CSV → `data/raw/decrs/drls_reg.csv`.
+  Columns used: `FEI_NUMBER, FIRM_NAME, ADDRESS, OPERATIONS, EXPIRATION_DATE, REGISTRANT_NAME`.
+  Repackager = OPERATIONS has REPACK/RELABEL but not (API) MANUFACTURE.
+- **DSCSA**: https://www.accessdata.fda.gov/scripts/cder/wdd3plreporting/index.cfm
+  → export per state into `data/raw/dscsa/<STATE>.csv`.
+  Columns used: `Facility Name, Facility Type (WDD|3PL), License Number, License State (US-XX)`.
 
-1. Open https://www.fda.gov/drugs/drug-approvals-and-databases/drug-establishments-current-registration-site-decrs
-   (or the HealthData.gov mirror at https://healthdata.gov/dataset/Drug-Establishments-Current-Registration-Site/s52i-rmqw)
-2. Export/download the full dataset as CSV.
-3. Save it as `data/raw/decrs.csv`.
+## Known gap (not in any dataset)
 
-## 3. DSCSA wholesale distributor / 3PL annual reporting database
-
-1. Open https://www.accessdata.fda.gov/scripts/cder/wdd3plreporting/index.cfm
-2. Run a search that returns all records (or per the big-3-only Phase 1 scope:
-   McKesson, Cardinal Health, AmerisourceBergen/Cencora and their licensed
-   subsidiaries — see `app.core.config.settings.big3_distributor_names`).
-3. Export the results as CSV and save as `data/raw/dscsa_distributors.csv`.
-
-Once these three files exist at the paths above, ping me to resume ingestion —
-the Orange Book parser is already written against the real tilde-delimited
-format; DECRS/DSCSA parsers will be finalized once I can see the actual
-column headers from your exports (government CSV exports vary).
+There is still **no edge linking a Drug/Manufacturer to a Distributor** — no public
+dataset says which distributor carries which SKU. The graph connects them indirectly
+through Geography (Distributor→LICENSED_IN→Geography←LOCATED_IN←Facility←OPERATES←Manufacturer),
+so sourcing should match a drug's manufacturer/state to distributors licensed in the
+delivery state at query time rather than via a stored edge.

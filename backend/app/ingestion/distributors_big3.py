@@ -1,10 +1,9 @@
 from app.ingestion.models import DistributorRecord
 
-# Phase 1 scope: big-3 wholesale distributors only (see PLAN.md Assumption 1
-# and the approved implementation plan). These are real, publicly known
-# facts (headquarters city/state, national licensure) -- not a substitute
-# for the actual DSCSA annual reporting database, which lists licenses by
-# state and includes the ~6,000 other distributors deferred to Phase 8.
+# Big-3 wholesale distributors as a small, deterministic fixture for tests.
+# Production seeding now uses the real DSCSA per-state exports
+# (app.ingestion.distributors.load_distributor_records); this stub is retained
+# only so unit tests don't need the full 1,300+ distributor dataset.
 ALL_US_STATES = [
     "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID",
     "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO",
@@ -16,29 +15,35 @@ BIG3_DISTRIBUTORS: list[DistributorRecord] = [
     DistributorRecord(
         license_number="BIG3-MCKESSON",
         name="McKesson Corporation",
+        canonical_name="mckesson",
         distributor_type="wholesale_distributor",
         home_state="TX",
         city="Irving",
         states_licensed=ALL_US_STATES,
         national_coverage=True,
+        license_count=len(ALL_US_STATES),
     ),
     DistributorRecord(
         license_number="BIG3-CARDINAL",
         name="Cardinal Health, Inc.",
+        canonical_name="cardinal health",
         distributor_type="wholesale_distributor",
         home_state="OH",
         city="Dublin",
         states_licensed=ALL_US_STATES,
         national_coverage=True,
+        license_count=len(ALL_US_STATES),
     ),
     DistributorRecord(
         license_number="BIG3-CENCORA",
         name="Cencora, Inc. (formerly AmerisourceBergen)",
+        canonical_name="cencora",
         distributor_type="wholesale_distributor",
         home_state="PA",
         city="Conshohocken",
         states_licensed=ALL_US_STATES,
         national_coverage=True,
+        license_count=len(ALL_US_STATES),
     ),
 ]
 

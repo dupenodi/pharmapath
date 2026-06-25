@@ -43,5 +43,45 @@ def parse_ndc_records(raw: dict) -> list[NdcRecord]:
     return records
 
 
+def _completeness(rec: NdcRecord) -> int:
+    """How many of the fields we care about are populated (for dup tie-breaking)."""
+    return sum(
+        bool(v)
+        for v in (
+            rec.brand_name,
+            rec.dosage_form,
+            rec.route,
+            rec.active_ingredient_strengths,
+            rec.substance_name,
+            rec.application_number,
+        )
+    )
+
+
+def dedupe_ndc_records(records: list[NdcRecord]) -> list[NdcRecord]:
+    """Collapse rows sharing a product_ndc to one 'best' record.
+
+    The graph keys Drug nodes on product_ndc, so duplicate rows would silently
+    overwrite each other. We instead keep the record with a non-expired listing,
+    breaking ties by field completeness, so no product is lost to clobbering.
+    """
+    best: dict[str, NdcRecord] = {}
+    for rec in records:
+        key = rec.product_ndc
+        incumbent = best.get(key)
+        if incumbent is None:
+            best[key] = rec
+            continue
+        # Prefer a record that still has a listing date (not expired/blank),
+        # then the more complete one.
+        cand_rank = (bool(rec.listing_expiration_date), _completeness(rec))
+        inc_rank = (bool(incumbent.listing_expiration_date), _completeness(incumbent))
+        if cand_rank > inc_rank:
+            best[key] = rec
+    return list(best.values())
+
+
 def load_ndc_records() -> list[NdcRecord]:
+    # Dedupe is applied by the caller *after* product-type filtering, so a
+    # same-NDC non-prescription row can't win and then get filtered out.
     return parse_ndc_records(fetch_ndc_json())

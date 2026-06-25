@@ -41,29 +41,36 @@ class OrangeBookProduct(BaseModel):
 
 
 class FacilityRecord(BaseModel):
-    """One registered drug manufacturing facility (DECRS)."""
+    """One registered drug establishment (DECRS drls_reg export)."""
 
     fei_number: str
     firm_name: str
+    canonical_name: str
     address: str
     city: str
-    state: str
-    zip_code: str
-    country: str
-    registration_status: str
-    facility_types: list[str]
+    state: str  # US 2-letter code, "" if foreign/unknown
+    country: str  # 3-letter code (USA, IND, ...)
+    is_foreign: bool
+    operations: list[str]  # MANUFACTURE, API MANUFACTURE, REPACK, RELABEL, ...
+    is_manufacturer: bool  # performs (API) MANUFACTURE
+    is_repackager: bool  # performs REPACK/RELABEL but not MANUFACTURE
+    expiration_date: str | None
+    registrant_name: str | None
 
 
 class DistributorRecord(BaseModel):
-    """One licensed wholesale distributor / 3PL (DSCSA annual reporting)."""
+    """One licensed wholesale distributor / 3PL, aggregated across the DSCSA
+    per-state reporting exports (one entity, all the states it's licensed in)."""
 
-    license_number: str
+    license_number: str  # a representative license number
     name: str
+    canonical_name: str
     distributor_type: str  # "wholesale_distributor" | "third_party_logistics"
     home_state: str
     city: str
     states_licensed: list[str]
     national_coverage: bool
+    license_count: int  # how many state licenses back this entity
 
 
 class GeographyRecord(BaseModel):
