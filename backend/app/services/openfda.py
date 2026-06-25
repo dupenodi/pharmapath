@@ -10,6 +10,20 @@ _enforcement_cache: TTLCache[list[ComplianceFlag]] = TTLCache(settings.openfda_c
 _shortage_cache: TTLCache[list[Shortage]] = TTLCache(settings.openfda_cache_ttl_seconds)
 _label_cache: TTLCache[dict | None] = TTLCache(settings.openfda_cache_ttl_seconds)
 
+# A single pooled client, reused across every call. Matching against a
+# populous state can mean hundreds of openFDA calls per request -- opening a
+# fresh httpx.AsyncClient (and paying a new TCP+TLS handshake) for each one,
+# as before, was a major chunk of the latency that running calls concurrently
+# alone couldn't fix; the pooled client reuses connections across them.
+_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(timeout=15.0)
+    return _client
+
 
 def _quote(value: str) -> str:
     return value.replace('"', '\\"')
@@ -23,30 +37,29 @@ async def fetch_enforcement(firm_name: str) -> list[ComplianceFlag]:
         return cached
 
     flags: list[ComplianceFlag] = []
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.get(
-            f"{settings.openfda_base_url}/drug/enforcement.json",
-            params={"search": f'recalling_firm:"{_quote(firm_name)}"', "limit": 20, "sort": "report_date:desc"},
-        )
-        if response.status_code == 404:
-            _enforcement_cache.set(cache_key, flags)
-            return flags
-        response.raise_for_status()
-        for result in response.json().get("results", []):
-            classification = result.get("classification", "")
-            flags.append(
-                ComplianceFlag(
-                    id=result.get("recall_number", result.get("event_id", "")),
-                    flag_type="recall",
-                    severity=RECALL_SEVERITY.get(classification, "low"),
-                    status="active" if result.get("status") == "Ongoing" else "closed",
-                    issued_date=result.get("recall_initiation_date"),
-                    closed_date=result.get("termination_date"),
-                    description=(result.get("reason_for_recall") or result.get("product_description") or "")[:500],
-                    source_url=None,
-                    affected_products=[result.get("product_description", "")],
-                )
+    response = await _get_client().get(
+        f"{settings.openfda_base_url}/drug/enforcement.json",
+        params={"search": f'recalling_firm:"{_quote(firm_name)}"', "limit": 20, "sort": "report_date:desc"},
+    )
+    if response.status_code == 404:
+        _enforcement_cache.set(cache_key, flags)
+        return flags
+    response.raise_for_status()
+    for result in response.json().get("results", []):
+        classification = result.get("classification", "")
+        flags.append(
+            ComplianceFlag(
+                id=result.get("recall_number", result.get("event_id", "")),
+                flag_type="recall",
+                severity=RECALL_SEVERITY.get(classification, "low"),
+                status="active" if result.get("status") == "Ongoing" else "closed",
+                issued_date=result.get("recall_initiation_date"),
+                closed_date=result.get("termination_date"),
+                description=(result.get("reason_for_recall") or result.get("product_description") or "")[:500],
+                source_url=None,
+                affected_products=[result.get("product_description", "")],
             )
+        )
 
     _enforcement_cache.set(cache_key, flags)
     return flags
@@ -60,30 +73,29 @@ async def fetch_shortages(generic_name: str) -> list[Shortage]:
         return cached
 
     shortages: list[Shortage] = []
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.get(
-            f"{settings.openfda_base_url}/drug/shortages.json",
-            params={"search": f'generic_name:"{_quote(generic_name)}"', "limit": 20},
-        )
-        if response.status_code == 404:
-            _shortage_cache.set(cache_key, shortages)
-            return shortages
-        response.raise_for_status()
-        for result in response.json().get("results", []):
-            status_text = (result.get("status") or "").lower()
-            shortages.append(
-                Shortage(
-                    id=result.get("package_ndc", result.get("generic_name", "")),
-                    drug_name=result.get("presentation", result.get("generic_name", "")),
-                    generic_name=result.get("generic_name", generic_name),
-                    status="resolved" if "resolved" in status_text else "active",
-                    reason=result.get("related_info"),
-                    start_date=result.get("initial_posting_date"),
-                    resolved_date=result.get("discontinued_date") if "resolved" in status_text else None,
-                    affected_firms=[result.get("company_name", "")] if result.get("company_name") else [],
-                    last_checked=date.today(),
-                )
+    response = await _get_client().get(
+        f"{settings.openfda_base_url}/drug/shortages.json",
+        params={"search": f'generic_name:"{_quote(generic_name)}"', "limit": 20},
+    )
+    if response.status_code == 404:
+        _shortage_cache.set(cache_key, shortages)
+        return shortages
+    response.raise_for_status()
+    for result in response.json().get("results", []):
+        status_text = (result.get("status") or "").lower()
+        shortages.append(
+            Shortage(
+                id=result.get("package_ndc", result.get("generic_name", "")),
+                drug_name=result.get("presentation", result.get("generic_name", "")),
+                generic_name=result.get("generic_name", generic_name),
+                status="resolved" if "resolved" in status_text else "active",
+                reason=result.get("related_info"),
+                start_date=result.get("initial_posting_date"),
+                resolved_date=result.get("discontinued_date") if "resolved" in status_text else None,
+                affected_firms=[result.get("company_name", "")] if result.get("company_name") else [],
+                last_checked=date.today(),
             )
+        )
 
     _shortage_cache.set(cache_key, shortages)
     return shortages
@@ -95,17 +107,16 @@ async def fetch_label(generic_name: str) -> dict | None:
     if _label_cache.has(cache_key):
         return _label_cache.get(cache_key)
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.get(
-            f"{settings.openfda_base_url}/drug/label.json",
-            params={"search": f'openfda.generic_name:"{_quote(generic_name)}"', "limit": 1},
-        )
-        if response.status_code == 404:
-            _label_cache.set(cache_key, None)
-            return None
-        response.raise_for_status()
-        results = response.json().get("results", [])
-        label = results[0] if results else None
+    response = await _get_client().get(
+        f"{settings.openfda_base_url}/drug/label.json",
+        params={"search": f'openfda.generic_name:"{_quote(generic_name)}"', "limit": 1},
+    )
+    if response.status_code == 404:
+        _label_cache.set(cache_key, None)
+        return None
+    response.raise_for_status()
+    results = response.json().get("results", [])
+    label = results[0] if results else None
 
     _label_cache.set(cache_key, label)
     return label

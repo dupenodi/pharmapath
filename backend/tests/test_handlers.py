@@ -55,7 +55,7 @@ async def test_get_compliance_status_handler_facility_says_unavailable():
     graph = build_test_graph()
     result = await handlers.handle_get_compliance_status(graph, entity_id="facility:x", entity_type="facility")
     assert result["status"] == "unknown"
-    assert "DECRS not yet ingested" in result["note"]
+    assert "manufacturer" in result["note"].lower()
 
 
 @pytest.mark.asyncio
@@ -66,10 +66,30 @@ async def test_check_shortage_handler_returns_empty_when_no_shortage():
 
 
 @pytest.mark.asyncio
-async def test_find_alternatives_handler_includes_orange_book_caveat():
+async def test_find_alternatives_handler_notes_when_none_found():
+    # The fixture graph has no Orange Book index loaded, so no drug has a
+    # te_groups match -- the handler should say so rather than silently
+    # returning an empty list with no explanation.
     graph = build_test_graph()
     result = await handlers.handle_find_alternatives(graph, drug_id="drug:71335-9603")
-    assert "Orange Book" in result["caveat"]
+    assert result["alternatives"] == []
+    assert result["total"] == 0
+    assert "note" in result
+
+
+@pytest.mark.asyncio
+async def test_find_alternatives_handler_returns_real_te_matches():
+    graph = build_test_graph()
+    # Two synthetic drugs sharing a TE group, the same shape build.py produces
+    # from a real Orange Book index -- exercises the canonical TE-based path
+    # without needing to fabricate a full Orange Book ingestion fixture.
+    graph.add_node("drug:te-a", type="Drug", brand_name="Test Drug A", te_groups=["AB"], is_generic=True)
+    graph.add_node("drug:te-b", type="Drug", brand_name="Test Drug B", te_groups=["AB"], is_generic=True)
+    result = await handlers.handle_find_alternatives(graph, drug_id="drug:te-a")
+    assert result["total"] == 1
+    assert result["alternatives"][0]["drug_id"] == "drug:te-b"
+    assert result["alternatives"][0]["relationship"] == "therapeutic_equivalent"
+    assert "note" not in result
 
 
 @pytest.mark.asyncio
@@ -84,7 +104,35 @@ async def test_get_distributor_coverage_handler_returns_big3():
     graph = build_test_graph()
     result = await handlers.handle_get_distributor_coverage(graph, state="il")
     assert result["state"] == "IL"
+    assert result["total"] == 3
     assert len(result["distributors"]) == 3
+    assert "note" not in result
+
+
+@pytest.mark.asyncio
+async def test_get_distributor_coverage_handler_caps_large_results():
+    graph = build_test_graph()
+    for i in range(30):
+        node_id = f"dist:synthetic-{i}"
+        graph.add_node(
+            node_id,
+            type="Distributor",
+            name=f"Synthetic Distributor {i}",
+            canonical_name=f"synthetic_{i}",
+            distributor_type="wholesale_distributor",
+            home_state="IL",
+            states_licensed=["IL"],
+            national_coverage=False,
+        )
+        graph.add_edge(node_id, "geo:IL", key="LICENSED_IN")
+
+    result = await handlers.handle_get_distributor_coverage(graph, state="il")
+    assert result["total"] == 33  # 30 synthetic + the 3 big-3 fixture distributors
+    assert len(result["distributors"]) == handlers.DISTRIBUTOR_COVERAGE_DEFAULT_LIMIT
+    assert "note" in result
+
+    result_with_limit = await handlers.handle_get_distributor_coverage(graph, state="il", limit=5)
+    assert len(result_with_limit["distributors"]) == 5
 
 
 @pytest.mark.asyncio

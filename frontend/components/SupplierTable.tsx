@@ -20,8 +20,10 @@ type SortKey = "score" | "supplier_name" | "compliance_status" | "shortage_risk"
 export default function SupplierTable({ data }: { data: SupplierTableData }) {
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showAlternatives, setShowAlternatives] = useState(false);
 
   const matches = data?.matches ?? [];
+  const alternatives = data?.alternatives ?? [];
   const sorted = useMemo(() => {
     const copy = [...matches];
     copy.sort((a, b) => {
@@ -111,11 +113,24 @@ export default function SupplierTable({ data }: { data: SupplierTableData }) {
         </tbody>
       </table>
       {sorted.length === 0 && <p className="px-4 py-6 text-center text-sm text-zinc-500">No qualifying suppliers found.</p>}
-      {hasShortageRisk && (
+      {(hasShortageRisk || sorted.length === 0) && alternatives.length > 0 && (
         <div className="border-t border-zinc-800 px-4 py-3">
-          <button className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-400">
-            Show alternatives
+          <button
+            onClick={() => setShowAlternatives((v) => !v)}
+            className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-400"
+          >
+            {showAlternatives ? "Hide" : "Show"} therapeutic alternatives ({alternatives.length})
           </button>
+          {showAlternatives && (
+            <ul className="mt-3 space-y-1.5 text-sm">
+              {alternatives.map((a) => (
+                <li key={a.drug_id} className="flex items-center justify-between border-t border-zinc-800/60 pt-1.5 first:border-t-0 first:pt-0">
+                  <span className="text-zinc-200">{a.brand_name || a.generic_name}</span>
+                  <span className="text-xs uppercase tracking-wide text-zinc-500">Orange Book TE match</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

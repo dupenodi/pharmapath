@@ -55,3 +55,4 @@ class MatchResult:
     alternatives: list[AlternativeDrug]
     risk_summary: RiskSummary | None
     explanation: str
+    matches_total: int = 0  # true candidate count before any display cap

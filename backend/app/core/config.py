@@ -31,15 +31,5 @@ class Settings(BaseSettings):
     openfda_base_url: str = "https://api.fda.gov"
     openfda_cache_ttl_seconds: int = 3600
 
-    # Phase 1 scope decision: big 3 wholesale distributors only.
-    # Expanded to the full DSCSA list in a later phase.
-    distributor_scope: str = "big3"
-    big3_distributor_names: tuple[str, ...] = (
-        "mckesson",
-        "cardinal health",
-        "amerisourcebergen",
-        "cencora",  # AmerisourceBergen renamed to Cencora in 2023
-    )
-
 
 settings = Settings()
