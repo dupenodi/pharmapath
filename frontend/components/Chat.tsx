@@ -9,6 +9,13 @@ function createSessionId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `session-${Date.now()}-${Math.random()}`;
 }
 
+const EXAMPLE_PROMPTS = [
+  "I need atorvastatin for delivery to Illinois",
+  "Find a supplier for 10,000 units of acetaminophen to Chicago in 2 weeks",
+  "What's the shortage risk for gabapentin?",
+  "Compare suppliers for amoxicillin 500mg capsules",
+];
+
 export default function Chat() {
   const [sessionId] = useState(createSessionId);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -54,6 +61,29 @@ export default function Chat() {
       </header>
 
       <div className="flex-1 space-y-6 overflow-y-auto pb-4">
+        {messages.length === 0 && !loading && (
+          <div className="flex flex-col items-center justify-center px-2 py-10 text-center">
+            <p className="mb-2 text-[12px] font-medium uppercase tracking-[0.2em] text-zinc-500">EaseMed · Assistant</p>
+            <h2 className="mb-3 max-w-md text-balance text-xl font-semibold text-zinc-100">
+              Ask about supply chains, supplier matching, or shortage risk
+            </h2>
+            <p className="mb-6 max-w-md text-sm text-zinc-500">
+              The agent uses the same FDA knowledge graph as the Supply Map. Try a procurement-style question to get started.
+            </p>
+            <div className="flex w-full max-w-lg flex-col gap-2">
+              {EXAMPLE_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => send(prompt)}
+                  className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3 text-left text-sm text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-900 hover:text-zinc-100"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {messages.map((m) => (
           <div key={m.id} className={m.role === "user" ? "flex justify-end" : "flex flex-col items-start gap-2"}>
             {m.role === "user" ? (

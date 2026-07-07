@@ -12,8 +12,10 @@ import Monograph from "./Monograph";
 // click always lands on a real product monograph -- a name-only lookup would
 // rank the ActiveIngredient hub first (it always has the highest degree),
 // never showing a newcomer the actual NDC/equivalents/manufacturer record.
+const DEFAULT_DRUG_ID = "drug:0480-3588";
+
 const EXAMPLES = [
-  { label: "Atorvastatin", id: "drug:0480-3588" },
+  { label: "Atorvastatin", id: DEFAULT_DRUG_ID },
   { label: "Amoxicillin", id: "drug:83112-500" },
   { label: "Lisinopril", id: "drug:24979-243" },
   { label: "Metformin", id: "drug:72336-095" },
@@ -24,7 +26,7 @@ const EXAMPLES = [
 const LEGEND_TYPES = ["Drug", "ActiveIngredient", "Manufacturer", "Facility", "Distributor", "Geography"];
 
 export default function SupplyMap() {
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<string[]>([DEFAULT_DRUG_ID]);
   const [neighborhood, setNeighborhood] = useState<{ id: string; data: Neighborhood } | null>(null);
   const [detail, setDetail] = useState<{ id: string; data: EntityDetail } | null>(null);
   // Hide the example chips while the search dropdown is showing -- they'd

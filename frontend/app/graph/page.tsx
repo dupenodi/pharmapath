@@ -1,5 +1,5 @@
-import SupplyMap from "@/components/graph/SupplyMap";
+import { redirect } from "next/navigation";
 
 export default function GraphPage() {
-  return <SupplyMap />;
+  redirect("/");
 }

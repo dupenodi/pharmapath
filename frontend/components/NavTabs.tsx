@@ -4,8 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
-  { href: "/", label: "Assistant" },
-  { href: "/graph", label: "Supply Map" },
+  { href: "/", label: "Supply Map" },
+  { href: "/assistant", label: "Assistant" },
 ];
 
 export default function NavTabs() {
@@ -14,7 +14,10 @@ export default function NavTabs() {
     <nav className="flex items-center gap-1 border-b border-zinc-800 bg-zinc-950/80 px-4 py-2 backdrop-blur">
       <span className="mr-4 text-sm font-semibold tracking-tight text-zinc-100">EaseMed</span>
       {TABS.map((tab) => {
-        const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
+        const active =
+          tab.href === "/"
+            ? pathname === "/" || pathname.startsWith("/graph")
+            : pathname.startsWith(tab.href);
         return (
           <Link
             key={tab.href}

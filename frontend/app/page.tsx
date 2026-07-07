@@ -1,5 +1,5 @@
-import Chat from "@/components/Chat";
+import SupplyMap from "@/components/graph/SupplyMap";
 
 export default function Home() {
-  return <Chat />;
+  return <SupplyMap />;
 }
