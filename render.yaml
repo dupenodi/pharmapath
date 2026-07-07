@@ -17,4 +17,4 @@ services:
       - key: GRAPH_SCOPE
         value: rx_only
       - key: CORS_ORIGINS
-        value: '["http://localhost:3000"]'
+        value: '["*"]'

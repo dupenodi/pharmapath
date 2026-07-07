@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
 
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["*"]
 
     data_dir: Path = REPO_ROOT / "data"
     raw_data_dir: Path = REPO_ROOT / "data" / "raw"
